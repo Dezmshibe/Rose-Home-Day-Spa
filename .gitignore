@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Flask
+instance/
+.flaskenv
+.webassets-cache
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+booking.db
+mshibe.db
+*.db-journal
+
+# Secrets
+.env
+.env.*
+!.env.example
+templates/business/.env
+*.key
+*.pem
+secrets.json
+credentials.json
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Misc
+*.local
+*.bak
+*.tmp
+
+# Old / duplicate project folders (optional - remove if you want to track them)
+instance/
+multibusiness-booking-platform/

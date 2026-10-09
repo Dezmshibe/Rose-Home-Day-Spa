@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ business.name }} dashboard · Appoint{% endblock %}
+{% block content %}
+<section class="container py-5">
+<div class="dashboard-head"><div><span class="eyebrow">BUSINESS DASHBOARD</span><h1>{{ business.name }}</h1><p>{{ business.category }} · <a href="{{ url_for('business_profile',slug=business.slug) }}">View public profile →</a></p></div><a class="btn btn-primary rounded-pill" href="{{ url_for('create_business') }}">+ Add business</a></div>
+<div class="row g-3 my-4">
+<div class="col-md-4"><div class="metric"><small>TOTAL BOOKINGS</small><strong>{{ total }}</strong></div></div>
+<div class="col-md-4"><div class="metric"><small>UPCOMING</small><strong>{{ upcoming }}</strong></div></div>
+<div class="col-md-4"><div class="metric"><small>TOTAL PAID</small><strong>R{{ '%.2f'|format(revenue) }}</strong></div></div>
+</div>
+<div class="dashboard-nav"><a href="{{ url_for('dashboard',business_id=business.id) }}">Overview</a><a href="{{ url_for('services',business_id=business.id) }}">Services</a><a href="{{ url_for('staff',business_id=business.id) }}">Team</a><a href="{{ url_for('business_settings',business_id=business.id) }}">Settings</a></div>
+<div class="panel"><div class="d-flex justify-content-between align-items-center mb-3"><h2>Appointments</h2><span class="text-muted">Latest 25</span></div>
+<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Customer</th><th>Service</th><th>Date</th><th>Time</th><th>Payment</th><th>Appointment</th><th></th></tr></thead>
+<tbody>
+{% for a in appointments %}
+<tr>
+<td><strong>{{ a.customer_name }}</strong><small>{{ a.customer_phone }}</small></td>
+<td>{{ a.service.name }}</td><td>{{ a.date.strftime('%d %b %Y') }}</td><td>{{ a.time }}</td>
+<td>
+  {% if a.payment_status == "paid" %}
+    <span class="status status-confirmed">PAID</span><small>R{{ '%.2f'|format(a.amount_paid) }}</small>
+  {% elif a.payment_method == "cash" %}
+    <span class="status status-pending">PAY IN PERSON</span><small>R{{ '%.2f'|format(a.amount_due) }} due</small>
+  {% else %}
+    <span class="status status-pending">YOCO PENDING</span><small>R{{ '%.2f'|format(a.amount_due) }}</small>
+  {% endif %}
+</td>
+<td><span class="status status-{{ a.status }}">{{ a.status }}</span></td>
+<td>
+  {% if a.payment_method == "cash" and a.payment_status != "paid" %}
+  <form method="post" action="{{ url_for('mark_cash_paid',appointment_id=a.id,business_id=business.id) }}"><button class="btn btn-sm btn-outline-success rounded-pill">Mark cash paid</button></form>
+  {% else %}
+  <form method="post" action="{{ url_for('appointment_status',appointment_id=a.id,business_id=business.id) }}"><select name="status" onchange="this.form.submit()" class="form-select form-select-sm"><option>{{ a.status }}</option><option>confirmed</option><option>completed</option><option>cancelled</option><option>pending</option></select></form>
+  {% endif %}
+</td>
+</tr>
+{% else %}<tr><td colspan="7" class="text-center py-5">No appointments yet.</td></tr>{% endfor %}
+</tbody></table></div></div></section>{% endblock %}

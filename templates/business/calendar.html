@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+{% block title %}Calendar · {{ business.name }}{% endblock %}
+{% block content %}
+<section class="container py-5 calendar-page">
+  <div class="dashboard-head">
+    <div>
+      <span class="eyebrow">CALENDAR</span>
+      <h1>Your bookings, at a glance.</h1>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-dark rounded-pill" href="{{ url_for('dashboard', business_id=business.id) }}">← Dashboard</a>
+    </div>
+  </div>
+
+  <div class="dashboard-nav">
+    <a href="{{ url_for('dashboard', business_id=business.id) }}">Overview</a>
+    <a class="active" href="{{ url_for('calendar', business_id=business.id) }}">Calendar</a>
+    <a href="{{ url_for('services', business_id=business.id) }}">Services</a>
+    <a href="{{ url_for('staff', business_id=business.id) }}">Team</a>
+    <a href="{{ url_for('business_settings', business_id=business.id) }}">Settings</a>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="calendar-toolbar">
+    <div class="calendar-toolbar-left">
+      <button class="calendar-nav-btn" id="prev-month" type="button" aria-label="Previous month">←</button>
+      <h2 id="month-label" class="calendar-month-label">—</h2>
+      <button class="calendar-nav-btn" id="next-month" type="button" aria-label="Next month">→</button>
+      <button class="calendar-nav-btn primary" id="today-btn" type="button">Today</button>
+    </div>
+
+    <div class="calendar-toolbar-right">
+      <label class="calendar-staff-filter">
+        <span>TEAM</span>
+        <select id="staff-filter" class="form-select">
+          <option value="">All team</option>
+          {% for member in staff %}
+          <option value="{{ member.id }}">{{ member.name }} · {{ member.role }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="calendar-legend">
+    <span class="legend-item"><span class="legend-dot status-confirmed"></span> Confirmed</span>
+    <span class="legend-item"><span class="legend-dot status-pending"></span> Pending payment</span>
+    <span class="legend-item"><span class="legend-dot status-completed"></span> Completed</span>
+    <span class="legend-item"><span class="legend-dot status-cancelled"></span> Cancelled</span>
+  </div>
+
+  <!-- Calendar -->
+  <div class="calendar-shell">
+    <div class="calendar-weekdays">
+      <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div>
+      <div>Fri</div><div>Sat</div><div>Sun</div>
+    </div>
+    <div class="calendar-grid" id="calendar-grid">
+      <div class="calendar-loading">Loading calendar…</div>
+    </div>
+  </div>
+</section>
+
+<!-- Day drawer -->
+<div class="calendar-drawer-backdrop" id="drawer-backdrop"></div>
+<aside class="calendar-drawer" id="calendar-drawer" aria-hidden="true">
+  <div class="calendar-drawer-header">
+    <div>
+      <span class="eyebrow">DAY VIEW</span>
+      <h3 id="drawer-date">—</h3>
+    </div>
+    <button class="calendar-drawer-close" id="drawer-close" type="button" aria-label="Close">×</button>
+  </div>
+  <div class="calendar-drawer-body" id="drawer-body">
+    <div class="calendar-empty">
+      <div class="calendar-empty-icon">📅</div>
+      <p>Select a day to see appointments.</p>
+    </div>
+  </div>
+</aside>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const grid = document.getElementById('calendar-grid');
+  const monthLabel = document.getElementById('month-label');
+  const staffFilter = document.getElementById('staff-filter');
+  const drawer = document.getElementById('calendar-drawer');
+  const backdrop = document.getElementById('drawer-backdrop');
+  const drawerDate = document.getElementById('drawer-date');
+  const drawerBody = document.getElementById('drawer-body');
+
+  const today = new Date();
+  let currentYear = today.getFullYear();
+  let currentMonth = today.getMonth() + 1;
+
+  const MONTH_NAMES = ['January','February','March','April','May','June',
+                       'July','August','September','October','November','December'];
+
+  const pad = n => String(n).padStart(2, '0');
+  const monthKey = (y, m) => `${y}-${pad(m)}`;
+
+  function updateMonthLabel() {
+    monthLabel.textContent = `${MONTH_NAMES[currentMonth - 1]} ${currentYear}`;
+  }
+
+  function goToMonth(y, m) {
+    currentYear = y;
+    currentMonth = m;
+    updateMonthLabel();
+    loadMonth();
+  }
+
+  async function loadMonth() {
+    grid.innerHTML = '<div class="calendar-loading">Loading calendar…</div>';
+    const url = new URL(`{{ url_for('calendar_appointments') }}`, window.location.origin);
+    url.searchParams.set('month', monthKey(currentYear, currentMonth));
+    url.searchParams.set('business_id', '{{ business.id }}');
+    if (staffFilter.value) url.searchParams.set('staff_id', staffFilter.value);
+
+    let data;
+    try {
+      const res = await fetch(url);
+      data = await res.json();
+    } catch (e) {
+      grid.innerHTML = '<div class="calendar-loading" style="color:#b91c1c;">Could not load calendar.</div>';
+      return;
+    }
+    renderGrid(data.days || {});
+  }
+
+  function renderGrid(days) {
+    const firstOfMonth = new Date(currentYear, currentMonth - 1, 1);
+    const lastOfMonth = new Date(currentYear, currentMonth, 0);
+
+    const jsDow = firstOfMonth.getDay();
+    const offset = (jsDow + 6) % 7;
+
+    const gridStart = new Date(firstOfMonth);
+    gridStart.setDate(firstOfMonth.getDate() - offset);
+
+    const totalCells = Math.ceil((offset + lastOfMonth.getDate()) / 7) * 7;
+    const todayIso = new Date().toISOString().slice(0, 10);
+
+    grid.innerHTML = '';
+
+    for (let i = 0; i < totalCells; i++) {
+      const d = new Date(gridStart);
+      d.setDate(gridStart.getDate() + i);
+      const iso = d.toISOString().slice(0, 10);
+      const inMonth = d.getMonth() === currentMonth - 1;
+      const dayAppts = days[iso] || [];
+
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'calendar-cell';
+      if (!inMonth) cell.classList.add('outside-month');
+      if (iso === todayIso) cell.classList.add('is-today');
+      if (dayAppts.length) cell.classList.add('has-appointments');
+      cell.dataset.date = iso;
+
+      const num = document.createElement('div');
+      num.className = 'calendar-daynum';
+      num.textContent = d.getDate();
+      cell.appendChild(num);
+
+      if (dayAppts.length) {
+        const count = document.createElement('div');
+        count.className = 'calendar-count';
+        count.textContent = dayAppts.length === 1 ? '1 booking' : `${dayAppts.length} bookings`;
+        cell.appendChild(count);
+
+        const list = document.createElement('div');
+        list.className = 'calendar-appt-list';
+
+        dayAppts.slice(0, 3).forEach(a => {
+          const chip = document.createElement('div');
+          chip.className = 'calendar-appt-chip status-' + a.status;
+          chip.innerHTML =
+            `<span class="chip-time">${escapeHtml(a.time)}</span>` +
+            `<span class="chip-name">${escapeHtml(a.customer_name)}</span>` +
+            (a.staff_name ? `<span class="chip-staff">${escapeHtml(a.staff_name.split(' ')[0])}</span>` : `<span></span>`);
+          list.appendChild(chip);
+        });
+
+        if (dayAppts.length > 3) {
+          const more = document.createElement('div');
+          more.className = 'calendar-more';
+          more.textContent = `+ ${dayAppts.length - 3} more`;
+          list.appendChild(more);
+        }
+
+        cell.appendChild(list);
+      }
+
+      cell.addEventListener('click', () => openDay(iso));
+      grid.appendChild(cell);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  async function openDay(iso) {
+    drawerDate.textContent = new Date(iso + 'T00:00:00').toLocaleDateString(undefined, {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+    drawerBody.innerHTML = '<div class="calendar-loading">Loading…</div>';
+    drawer.classList.add('open');
+    backdrop.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+
+    const url = new URL(`{{ url_for('calendar_day') }}`, window.location.origin);
+    url.searchParams.set('date', iso);
+    url.searchParams.set('business_id', '{{ business.id }}');
+    if (staffFilter.value) url.searchParams.set('staff_id', staffFilter.value);
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      renderDay(data.appointments || []);
+    } catch (e) {
+      drawerBody.innerHTML = '<div class="calendar-empty"><p style="color:#b91c1c;">Could not load day.</p></div>';
+    }
+  }
+
+  function renderDay(appointments) {
+    if (!appointments.length) {
+      drawerBody.innerHTML = `
+        <div class="calendar-empty">
+          <div class="calendar-empty-icon">🌤️</div>
+          <p>No appointments on this day.</p>
+        </div>`;
+      return;
+    }
+
+    drawerBody.innerHTML = appointments.map(a => {
+      const payBadge = a.payment_status === 'paid'
+        ? `<span class="status status-confirmed">PAID</span><small>R${a.amount_paid.toFixed(2)}</small>`
+        : a.payment_method === 'cash'
+          ? `<span class="status status-pending">PAY IN PERSON</span><small>R${a.amount_due.toFixed(2)}</small>`
+          : `<span class="status status-pending">YOCO PENDING</span><small>R${a.amount_due.toFixed(2)}</small>`;
+
+      return `
+        <div class="day-appt-card status-${a.status}">
+          <div class="day-appt-time">${escapeHtml(a.time)} <small>· ${a.duration}min</small></div>
+          <div class="day-appt-main">
+            <strong>${escapeHtml(a.customer_name)}</strong>
+            <span class="service-line">${escapeHtml(a.service)}${a.staff_name ? ' · ' + escapeHtml(a.staff_name) : ''}</span>
+            <span class="phone-line">${escapeHtml(a.customer_phone)}</span>
+          </div>
+          <div class="day-appt-pay">${payBadge}</div>
+          <div class="day-appt-ref">${escapeHtml(a.reference)}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function closeDrawer() {
+    drawer.classList.remove('open');
+    backdrop.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+  }
+
+  document.getElementById('prev-month').addEventListener('click', () => {
+    let m = currentMonth - 1, y = currentYear;
+    if (m < 1) { m = 12; y -= 1; }
+    goToMonth(y, m);
+  });
+
+  document.getElementById('next-month').addEventListener('click', () => {
+    let m = currentMonth + 1, y = currentYear;
+    if (m > 12) { m = 1; y += 1; }
+    goToMonth(y, m);
+  });
+
+  document.getElementById('today-btn').addEventListener('click', () => {
+    const now = new Date();
+    goToMonth(now.getFullYear(), now.getMonth() + 1);
+  });
+
+  staffFilter.addEventListener('change', loadMonth);
+  document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+  backdrop.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+  updateMonthLabel();
+  loadMonth();
+})();
+</script>
+{% endblock %}

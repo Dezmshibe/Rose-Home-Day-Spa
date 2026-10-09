@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Appointment · Appoint{% endblock %}
+{% block content %}
+<section class="container py-5">
+<div class="confirmation-card">
+<div class="success-icon">✓</div>
+<span class="eyebrow">APPOINTMENT</span>
+<h1>{% if appointment.payment_status == "paid" %}You're all paid.{% elif appointment.payment_method == "yoco" %}Payment pending.{% else %}You're booked.{% endif %}</h1>
+<p class="lead">Your appointment with <strong>{{ appointment.business.name }}</strong> is {% if appointment.payment_status == "paid" %}confirmed and paid.{% elif appointment.payment_method == "yoco" %}waiting for YOCO payment confirmation.{% else %}confirmed.{% endif %}</p>
+<div class="confirmation-grid">
+<div><small>REFERENCE</small><strong>{{ appointment.reference }}</strong></div>
+<div><small>DATE</small><strong>{{ appointment.date.strftime('%d %b %Y') }}</strong></div>
+<div><small>TIME</small><strong>{{ appointment.time }}</strong></div>
+<div><small>SERVICE</small><strong>{{ appointment.service.name }}</strong></div>
+<div><small>PAYMENT</small><strong>{{ appointment.payment_method|upper }}</strong></div>
+<div><small>AMOUNT DUE</small><strong>R{{ '%.2f'|format(appointment.amount_due) }}</strong></div>
+<div><small>AMOUNT PAID</small><strong>R{{ '%.2f'|format(appointment.amount_paid) }}</strong></div>
+<div><small>REMAINING</small><strong>R{{ '%.2f'|format(appointment.amount_due - appointment.amount_paid) }}</strong></div>
+</div>
+{% if appointment.payment_method == "cash" and appointment.payment_status != "paid" %}
+<div class="alert alert-warning mt-4">Payment: <strong>Pay in person</strong>. Please pay R{{ '%.2f'|format(appointment.amount_due) }} at your appointment.</div>
+{% elif appointment.payment_method == "yoco" and appointment.payment_status == "pending" %}
+<div class="alert alert-info mt-4">Your YOCO payment is being verified. We will email you when payment is confirmed.</div>
+{% elif appointment.payment_status == "paid" %}
+<div class="alert alert-success mt-4">Payment received: <strong>R{{ '%.2f'|format(appointment.amount_paid) }}</strong>.</div>
+{% endif %}
+<form method="post" action="{{ url_for('cancel',reference=appointment.reference) }}" class="mt-4" onsubmit="return confirm('Cancel this appointment?')"><button class="btn btn-outline-danger rounded-pill">Cancel appointment</button></form>
+</div></section>
+{% endblock %}

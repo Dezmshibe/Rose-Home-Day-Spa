@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Book at {{ business.name }} · Appoint{% endblock %}
+{% block content %}
+<section class="container py-5">
+<a href="{{ url_for('business_profile',slug=business.slug) }}" class="back-link">← {{ business.name }}</a>
+<div class="row g-5 mt-1">
+<div class="col-lg-7">
+<span class="eyebrow">BOOKING</span>
+<h1 class="page-title">Your appointment,<br><em>sorted.</em></h1>
+
+<form method="post" class="booking-panel" id="booking-form">
+{% if selected_service %}
+<div class="selected-service-card">
+  <div>
+    <span class="eyebrow">SELECTED SERVICE</span>
+    <h3>{{ selected_service.name }}</h3>
+    {% if selected_service.description %}<p>{{ selected_service.description }}</p>{% endif %}
+    <small>{{ selected_service.duration }} minutes · R{{ '%.2f'|format(selected_service.price) }}</small>
+  </div>
+  <a href="{{ url_for('business_profile', slug=business.slug) }}" class="change-service">Change service</a>
+</div>
+<input type="hidden" name="service_id" id="service" value="{{ selected_service.id }}" data-name="{{ selected_service.name|e }}" data-price="{{ selected_service.price }}" data-duration="{{ selected_service.duration }}">
+{% else %}
+<label>Service
+<select name="service_id" id="service" class="form-select" required>
+{% for s in services %}<option value="{{ s.id }}" data-duration="{{ s.duration }}" data-price="{{ s.price }}">{{ s.name }} · R{{ '%.2f'|format(s.price) }}</option>{% endfor %}
+</select></label>
+{% endif %}
+
+<div class="row g-3">
+<div class="col-md-6"><label>Date<input type="date" name="date" id="date" class="form-control" required></label></div>
+<div class="col-md-6"><label>Time<select name="time" id="time" class="form-select" required><option value="">Choose a date first</option></select></label></div>
+</div>
+
+{% if staff %}
+<label>Preferred team member
+<select name="staff_id" class="form-select">
+<option value="">Any available</option>
+{% for m in staff %}<option value="{{ m.id }}">{{ m.name }} · {{ m.role }}</option>{% endfor %}
+</select>
+</label>
+{% endif %}
+
+<div class="row g-3">
+<div class="col-md-6"><label>Your name<input name="customer_name" class="form-control" required></label></div>
+<div class="col-md-6"><label>Phone<input name="customer_phone" class="form-control" required></label></div>
+</div>
+
+<label>Email<input type="email" name="customer_email" class="form-control" required></label>
+
+<!-- PAYMENT METHOD -->
+<div class="payment-choice">
+<div class="payment-heading">
+<div>
+<span class="payment-kicker">PAYMENT</span>
+<h4>How would you like to pay?</h4>
+</div>
+<span class="payment-currency">ZAR</span>
+</div>
+
+<label class="payment-option">
+<input type="radio" name="payment_method" value="yoco" required>
+<span>
+<strong>Pay online with YOCO</strong>
+<small>Pay the full amount upfront securely by card.</small>
+</span>
+</label>
+
+<label class="payment-option">
+<input type="radio" name="payment_method" value="cash" checked>
+<span>
+<strong>Pay in person</strong>
+<small>Book now and pay the full amount at the business.</small>
+</span>
+</label>
+
+<div class="payment-total">
+<span>Total to pay</span>
+<strong id="amount-due">R0.00</strong>
+</div>
+</div>
+
+<label>Notes <span class="text-muted">(optional)</span>
+<textarea name="notes" class="form-control" rows="3"></textarea></label>
+
+<button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill mt-2" id="submit-btn">Confirm appointment →</button>
+</form>
+</div>
+
+<div class="col-lg-5">
+<div class="sticky-summary">
+<span class="eyebrow">YOUR BOOKING</span>
+<h3>{{ business.name }}</h3>
+<div id="summary">Choose a service and date to see your appointment details.</div>
+</div>
+</div>
+</div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const service = document.getElementById('service');
+const dateInput = document.getElementById('date');
+const time = document.getElementById('time');
+const summary = document.getElementById('summary');
+const amountDue = document.getElementById('amount-due');
+const submitBtn = document.getElementById('submit-btn');
+
+dateInput.min = new Date().toISOString().split('T')[0];
+
+function selectedPrice() {
+  if (service.tagName === 'INPUT') {
+    return Number(service.dataset.price || 0);
+  }
+  const option = service.options[service.selectedIndex];
+  return Number(option?.dataset.price || 0);
+}
+
+function selectedServiceLabel() {
+  if (service.tagName === 'INPUT') {
+    return service.dataset.name || 'Selected service';
+  }
+  const option = service.options[service.selectedIndex];
+  return option?.text || 'Select a service';
+}
+
+function selectedPayment() {
+  return document.querySelector('input[name="payment_method"]:checked')?.value || 'cash';
+}
+
+function updatePaymentUI() {
+  amountDue.textContent = 'R' + selectedPrice().toFixed(2);
+  submitBtn.textContent = selectedPayment() === 'yoco'
+    ? 'Pay with YOCO →'
+    : 'Confirm appointment →';
+
+  document.querySelectorAll('.payment-option').forEach(option => {
+    const radio = option.querySelector('input[type="radio"]');
+    option.classList.toggle('selected', radio && radio.checked);
+  });
+}
+
+async function loadSlots() {
+  if (!dateInput.value) return;
+
+  time.innerHTML = '<option>Loading...</option>';
+
+  const r = await fetch(
+    `{{ url_for('slots') }}?business_id={{ business.id }}&service_id=${service.value}&date=${dateInput.value}`
+  );
+  const data = await r.json();
+
+  time.innerHTML = data.slots.length
+    ? '<option value="">Select a time</option>' +
+      data.slots.map(x => `<option value="${x}">${x}</option>`).join('')
+    : '<option value="">No slots available</option>';
+
+  updateSummary();
+}
+
+function updateSummary() {
+  const payment = selectedPayment();
+
+  summary.innerHTML =
+    `<div class="summary-item"><span>Service</span><strong>${selectedServiceLabel()}</strong></div>` +
+    `<div class="summary-item"><span>Date</span><strong>${dateInput.value || '—'}</strong></div>` +
+    `<div class="summary-item"><span>Time</span><strong>${time.value || '—'}</strong></div>` +
+    `<div class="summary-item"><span>Payment</span><strong>${payment === 'yoco' ? 'YOCO · Pay upfront' : 'Cash · Pay in person'}</strong></div>`;
+}
+
+service.addEventListener('change', () => {
+  loadSlots();
+  updateSummary();
+  updatePaymentUI();
+});
+
+dateInput.addEventListener('change', loadSlots);
+time.addEventListener('change', updateSummary);
+
+document.querySelectorAll('input[name="payment_method"]').forEach(input => {
+  input.addEventListener('change', () => {
+    updateSummary();
+    updatePaymentUI();
+  });
+});
+
+updateSummary();
+updatePaymentUI();
+</script>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Settings · {{ business.name }}{% endblock %}
+{% block content %}
+<section class="container py-5">
+<div class="form-shell">
+<span class="eyebrow">BUSINESS SETTINGS</span>
+<h1 class="page-title">Make it yours.</h1>
+
+<form method="post" class="booking-panel">
+
+<div class="row g-3">
+<div class="col-md-8"><label>Business name<input name="name" value="{{ business.name }}" class="form-control" required></label></div>
+<div class="col-md-4"><label>Category<select name="category" class="form-select">{% for c in categories %}<option {% if business.category==c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label></div>
+</div>
+
+<label>Description<textarea name="description" class="form-control" rows="4">{{ business.description }}</textarea></label>
+
+<div class="row g-3">
+<div class="col-md-6"><label>Email<input name="email" value="{{ business.email }}" class="form-control"></label></div>
+<div class="col-md-6"><label>Phone<input name="phone" value="{{ business.phone }}" class="form-control"></label></div>
+<div class="col-md-8"><label>Address<input name="address" value="{{ business.address }}" class="form-control"></label></div>
+<div class="col-md-4"><label>City<input name="city" value="{{ business.city }}" class="form-control"></label></div>
+</div>
+
+<hr>
+<h3>Booking rules</h3>
+<div class="row g-3">
+<div class="col-md-4"><label>Open<input type="time" name="open_time" value="{{ settings.open_time }}" class="form-control"></label></div>
+<div class="col-md-4"><label>Close<input type="time" name="close_time" value="{{ settings.close_time }}" class="form-control"></label></div>
+<div class="col-md-4"><label>Slot interval<input type="number" name="slot_duration" value="{{ settings.slot_duration }}" class="form-control" min="5"></label></div>
+</div>
+<label>Cancellation notice (hours)<input type="number" name="cancellation_hours" value="{{ settings.cancellation_hours }}" class="form-control" min="0"></label>
+
+<hr>
+<h3>Payment methods</h3>
+<p class="text-muted">Choose which payment options customers can use when booking.</p>
+
+<div class="payment-setting-option">
+<label class="form-check payment-setting-check">
+<input class="form-check-input" type="checkbox" name="cash_enabled" {% if settings.cash_enabled %}checked{% endif %}>
+<span><strong>Cash / Pay in person</strong><small>Customers can reserve an appointment and pay at your business.</small></span>
+</label>
+</div>
+
+<div class="payment-setting-option">
+<label class="form-check payment-setting-check">
+<input class="form-check-input" type="checkbox" name="yoco_enabled" {% if settings.yoco_enabled %}checked{% endif %}>
+<span><strong>YOCO online payments</strong><small>Customers can pay the appointment amount online before the booking is confirmed.</small></span>
+</label>
+</div>
+
+<div class="yoco-settings-card">
+<div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+<div><span class="payment-kicker">YOCO</span><h4 class="mb-1">Online payment credentials</h4><p class="text-muted mb-0">Use your YOCO test keys while testing. Your secret key stays server-side and is encrypted before storage.</p></div>
+{% if yoco_public_key_configured and yoco_secret_configured %}<span class="badge text-bg-success">Configured</span>{% else %}<span class="badge text-bg-secondary">Not configured</span>{% endif %}
+</div>
+
+<label>YOCO Public Key
+<input type="text" name="yoco_public_key" class="form-control" autocomplete="off" value="{{ business.settings.yoco_public_key if business.settings else '' }}" placeholder="pk_test_...">
+</label>
+<small class="text-muted d-block mb-3">This is the public key YOCO gives you. It is safe to store with the business settings.</small>
+
+<label>YOCO Secret Key
+<input type="password" name="yoco_secret_key" class="form-control" autocomplete="new-password" placeholder="sk_test_...{% if yoco_secret_configured %} · leave blank to keep current key{% endif %}">
+</label>
+{% if yoco_secret_configured %}<label class="small text-muted"><input type="checkbox" name="remove_yoco_secret"> Remove stored YOCO secret key</label>{% endif %}
+
+<div class="yoco-webhook-help">
+<strong>Nothing else is required.</strong>
+<p class="mb-0 mt-1">Appoint creates the hosted YOCO checkout and verifies the payment directly with YOCO after the customer pays.</p>
+</div>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mt-4">
+<button class="btn btn-primary btn-lg rounded-pill" type="submit">Save changes</button>
+</div>
+
+</form>
+</div>
+</section>
+{% endblock %}
