@@ -1,4 +1,136 @@
-{% extends "base.html" %}{% block title %}Discover businesses · Appoint{% endblock %}{% block content %}
-<section class="hero"><div class="container py-5"><div class="row align-items-center g-5 py-lg-5"><div class="col-lg-7"><span class="eyebrow">THE NEW WAY TO BOOK</span><h1>Find a service.<br><em>Pick a time.</em><br>Get it done.</h1><p class="hero-copy">Discover great local businesses and book appointments in a few clicks.</p><form class="search-card" method="get"><input name="q" value="{{ q }}" class="form-control" placeholder="Search businesses, services or cities"><select name="category" class="form-select"><option value="">All categories</option>{% for c in categories %}<option value="{{ c }}" {% if selected_category==c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select><button class="btn btn-primary px-4">Search</button></form></div><div class="col-lg-5"><div class="hero-card"><div class="floating-pill">✦ Easy online booking</div><div class="hero-orb"></div><div class="hero-stat"><strong>{{ businesses|length }}</strong><span>businesses to discover</span></div></div></div></div></div></section>
-<section class="container py-5"><div class="d-flex justify-content-between align-items-end mb-4"><div><span class="eyebrow">EXPLORE</span><h2 class="section-title">Businesses you can book</h2></div><span class="text-muted">{{ businesses|length }} results</span></div><div class="row g-4">{% for business in businesses %}<div class="col-md-6 col-xl-4"><a class="business-card" href="{{ url_for('business_profile',slug=business.slug) }}"><div class="business-cover">{% if business.cover_url %}<img src="{{ business.cover_url }}" alt="{{ business.name }}">{% else %}<div class="cover-gradient"></div>{% endif %}<span class="category-pill">{{ business.category }}</span></div><div class="p-4"><h3>{{ business.name }}</h3><p>{{ business.description or 'A local business ready for your next appointment.' }}</p><div class="business-meta">{{ business.city or 'South Africa' }} <span>→</span></div></div></a></div>{% else %}<div class="col-12"><div class="empty-state">No businesses matched your search yet.</div></div>{% endfor %}</div></section>
-<section class="container pb-5"><div class="owner-cta"><div><span class="eyebrow">FOR BUSINESS OWNERS</span><h2>Turn your availability into bookings.</h2><p>Launch your business profile and start accepting appointments online.</p></div><a class="btn btn-light rounded-pill px-4" href="{{ url_for('register') }}">List your business →</a></div></section>{% endblock %}
+{% extends "base.html" %}
+{% block title %}{{ business.name if business else 'Appoint' }}{% endblock %}
+
+{% block content %}
+
+{% if not business %}
+  <section class="container py-5">
+    <div class="empty-state my-5">
+      <h1>No business set up yet.</h1>
+      <p>Create one from the dashboard to get started.</p>
+      {% if current_user.is_authenticated and current_user.is_business_owner() %}
+        <a class="btn btn-primary rounded-pill" href="{{ url_for('dashboard') }}">Go to dashboard</a>
+      {% else %}
+        <a class="btn btn-primary rounded-pill" href="{{ url_for('register') }}">Create an account</a>
+      {% endif %}
+    </div>
+  </section>
+{% else %}
+
+<section class="single-hero">
+  <div class="container py-5">
+    <div class="row align-items-center g-5 py-lg-5">
+      <div class="col-lg-7">
+        <span class="eyebrow">NAIL STUDIO · JOHANNESBURG</span>
+        <h1 class="single-hero-title">{{ business.name }}</h1>
+        <p class="single-hero-copy">
+  {{ business.description or 'Beautiful nails, gentle care. Book your appointment and let us take it from there.' }}
+</p>
+
+        <div class="single-hero-actions">
+          <a href="#book" class="btn btn-primary btn-lg rounded-pill px-4">Book now →</a>
+          {% if business.phone %}
+            <a href="tel:{{ business.phone }}" class="btn btn-outline-dark btn-lg rounded-pill px-4">Call us</a>
+          {% endif %}
+        </div>
+
+        <div class="single-hero-meta">
+          {% if business.city or business.address %}
+            <span>📍 {{ business.address }}{% if business.address and business.city %}, {% endif %}{{ business.city }}</span>
+          {% endif %}
+          {% if business.phone %}
+            <span>📞 {{ business.phone }}</span>
+          {% endif %}
+          {% if business.email %}
+            <span>✉️ {{ business.email }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="col-lg-5">
+        <div class="single-hero-card">
+          <div class="single-hero-orb"></div>
+          <div class="single-hero-pill">✦ Book online, any time</div>
+          {% if staff %}
+            <div class="single-hero-staff">
+              <small>Our team</small>
+              <div class="staff-avatars">
+                {% for member in staff[:4] %}
+                  <span class="staff-avatar" title="{{ member.name }}">{{ member.name[:1] }}</span>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="container py-5" id="book">
+  <div class="d-flex justify-content-between align-items-end mb-4">
+    <div>
+      <span class="eyebrow">SERVICES</span>
+      <h2 class="section-title">What we offer</h2>
+    </div>
+    <span class="text-muted">{{ services|length }} service{{ 's' if services|length != 1 else '' }}</span>
+  </div>
+
+  <div class="service-grid">
+    {% for service in services %}
+      <div class="service-public-card">
+        <div class="service-public-head">
+          {% if service.popular %}<span class="mini-badge">Popular</span>{% endif %}
+          <strong>R{{ '%.2f'|format(service.price) }}</strong>
+        </div>
+        <h3>{{ service.name }}</h3>
+        {% if service.description %}
+          <p>{{ service.description }}</p>
+        {% endif %}
+        <div class="service-public-meta">
+          <span>{{ service.duration }} min</span>
+          <a class="btn btn-primary rounded-pill" href="{{ url_for('book', slug=business.slug, service_id=service.id) }}">Book</a>
+        </div>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>This business has no services yet.</p>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% if staff %}
+<section class="container py-5">
+  <div class="mb-4">
+    <span class="eyebrow">OUR TEAM</span>
+    <h2 class="section-title">Who you'll meet</h2>
+  </div>
+  <div class="row g-4">
+    {% for member in staff %}
+      <div class="col-md-6 col-lg-3">
+        <div class="team-public-card">
+          <div class="avatar">{{ member.name[:1] }}</div>
+          <h3>{{ member.name }}</h3>
+          <small>{{ member.role }}</small>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="container py-5">
+  <div class="single-cta">
+    <div>
+      <span class="eyebrow">READY?</span>
+      <h2>Book your appointment at {{ business.name }}.</h2>
+      <p>Choose a service, pick a time, and you're done.</p>
+    </div>
+    <a class="btn btn-light rounded-pill px-4" href="#book">Book now →</a>
+  </div>
+</section>
+
+{% endif %}
+
+{% endblock %}

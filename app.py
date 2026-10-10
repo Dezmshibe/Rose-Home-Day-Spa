@@ -1,6 +1,10 @@
 import os, re, secrets
 from datetime import datetime, date, timedelta
 from functools import wraps
+
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -38,6 +42,7 @@ BUSINESS_PAYMENT_COLUMNS = {
     "yoco_webhook_secret_encrypted": "TEXT DEFAULT ''",
 }
 
+
 def ensure_business_payment_columns():
     """Add per-business payment configuration to an existing SQLite database."""
     if not app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite"):
@@ -48,6 +53,7 @@ def ensure_business_payment_columns():
         for name, definition in BUSINESS_PAYMENT_COLUMNS.items():
             if name not in cols:
                 conn.execute(text(f"ALTER TABLE business_setting ADD COLUMN {name} {definition}"))
+
 
 def ensure_payment_columns():
     """Add payment columns to an existing SQLite database without deleting data."""
@@ -61,67 +67,115 @@ def ensure_payment_columns():
                 conn.execute(text(f"ALTER TABLE appointment ADD COLUMN {name} {definition}"))
 
 
-CATEGORIES = ["Barber","Beauty","Hair Salon","Nails","Massage","Fitness","Tutoring","Photography","Healthcare","Automotive","Other"]
+CATEGORIES = ["Barber", "Beauty", "Hair Salon", "Nails", "Massage", "Fitness",
+              "Tutoring", "Photography", "Healthcare", "Automotive", "Other"]
+
 
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+
 def slugify(value):
     value = re.sub(r"[^a-zA-Z0-9\s-]", "", value).strip().lower()
     return re.sub(r"[-\s]+", "-", value) or "business"
 
+
 def unique_slug(name):
     base, slug, n = slugify(name), slugify(name), 2
     while Business.query.filter_by(slug=slug).first():
-        slug = f"{base}-{n}"; n += 1
+        slug = f"{base}-{n}"
+        n += 1
     return slug
+
 
 def owner_required(view):
     @wraps(view)
     @login_required
     def wrapped(*args, **kwargs):
-        if not current_user.is_business_owner(): abort(403)
+        if not current_user.is_business_owner():
+            abort(403)
         return view(*args, **kwargs)
     return wrapped
 
+
 def get_owned_business():
     business_id = request.args.get("business_id", type=int)
-    business = Business.query.filter_by(owner_id=current_user.id, **({"id": business_id} if business_id else {})).order_by(Business.id).first()
-    if not business: abort(404)
+    business = Business.query.filter_by(
+        owner_id=current_user.id,
+        **({"id": business_id} if business_id else {})
+    ).order_by(Business.id).first()
+    if not business:
+        abort(404)
     return business
+
 
 def reference():
     return "APT-" + secrets.token_hex(4).upper()
 
+
 def seed():
-    if User.query.filter_by(email="admin@platform.local").first(): return
-    admin = User(name="Platform Admin", email="admin@platform.local", password_hash=generate_password_hash("admin123"), role="platform_admin")
-    owner = User(name="Demo Owner", email="owner@brightstudio.local", password_hash=generate_password_hash("owner123"), role="business_owner")
-    db.session.add_all([admin, owner]); db.session.flush()
+    if User.query.filter_by(email="admin@platform.local").first():
+        return
+    admin = User(name="Platform Admin", email="admin@platform.local",
+                 password_hash=generate_password_hash("admin123"), role="platform_admin")
+    owner = User(name="Demo Owner", email="owner@brightstudio.local",
+                 password_hash=generate_password_hash("owner123"), role="business_owner")
+    db.session.add_all([admin, owner])
+    db.session.flush()
     business = Business(owner_id=owner.id, name="Bright Studio", slug="bright-studio", category="Beauty",
                         description="A modern appointment business ready for online bookings.",
-                        email="hello@brightstudio.com", phone="+27 11 000 0000", address="123 Main Street", city="Johannesburg")
-    db.session.add(business); db.session.flush()
+                        email="hello@brightstudio.com", phone="+27 11 000 0000",
+                        address="123 Main Street", city="Johannesburg")
+    db.session.add(business)
+    db.session.flush()
     db.session.add(BusinessSetting(business_id=business.id))
     db.session.add_all([
-        Service(business_id=business.id, name="Consultation", description="A quick consultation.", duration=30, price=300, popular=True),
-        Service(business_id=business.id, name="Standard Appointment", description="Our most popular appointment.", duration=45, price=750, popular=True),
-        Service(business_id=business.id, name="Deep Session", description="A longer premium session.", duration=90, price=1500)
+        Service(business_id=business.id, name="Consultation",
+                description="A quick consultation.", duration=30, price=300, popular=True),
+        Service(business_id=business.id, name="Standard Appointment",
+                description="Our most popular appointment.", duration=45, price=750, popular=True),
+        Service(business_id=business.id, name="Deep Session",
+                description="A longer premium session.", duration=90, price=1500),
     ])
-    db.session.add_all([Staff(business_id=business.id, name="Alex", role="Lead Specialist"), Staff(business_id=business.id, name="Taylor", role="Specialist")])
+    db.session.add_all([
+        Staff(business_id=business.id, name="Alex", role="Lead Specialist"),
+        Staff(business_id=business.id, name="Taylor", role="Specialist"),
+    ])
     db.session.commit()
 
-@app.context_processor
-def inject_globals(): return {"categories": CATEGORIES}
 
+@app.context_processor
+def inject_globals():
+    return {"categories": CATEGORIES}
+
+
+# =========================================================
+# HOMEPAGE — single-business landing page
+# =========================================================
 @app.route("/")
 def home():
-    q = request.args.get("q","").strip(); category = request.args.get("category","").strip()
-    query = Business.query.filter_by(status="active")
-    if q: query = query.filter(db.or_(Business.name.ilike(f"%{q}%"), Business.category.ilike(f"%{q}%"), Business.city.ilike(f"%{q}%")))
-    if category: query = query.filter_by(category=category)
-    return render_template("index.html", businesses=query.order_by(Business.created_at.desc()).all(), q=q, selected_category=category)
+    """Single-business mode: homepage IS the business landing page."""
+    business = Business.query.filter_by(status="active").order_by(Business.id).first()
+
+    if not business:
+        return render_template("index.html", business=None)
+
+    services = (
+        Service.query
+        .filter_by(business_id=business.id, active=True)
+        .order_by(Service.popular.desc(), Service.name)
+        .all()
+    )
+    staff = Staff.query.filter_by(business_id=business.id, active=True).all()
+
+    return render_template(
+        "index.html",
+        business=business,
+        services=services,
+        staff=staff,
+    )
+
 
 @app.route("/business/<slug>")
 def business_profile(slug):
@@ -130,21 +184,20 @@ def business_profile(slug):
     staff = Staff.query.filter_by(business_id=business.id, active=True).all()
     return render_template("business/profile.html", business=business, services=services, staff=staff)
 
-@app.route("/book/<slug>", methods=["GET","POST"])
+
+@app.route("/book/<slug>", methods=["GET", "POST"])
 def book(slug):
     business = Business.query.filter_by(slug=slug, status="active").first_or_404()
     services = Service.query.filter_by(business_id=business.id, active=True).order_by(Service.name).all()
     staff = Staff.query.filter_by(business_id=business.id, active=True).all()
 
-    # When a customer clicks "Book" on a specific service, carry that
-    # service into the booking page so they do not have to choose it again.
     selected_service = None
     selected_service_id = request.args.get("service_id", type=int)
     if selected_service_id:
         selected_service = Service.query.filter_by(
             id=selected_service_id,
             business_id=business.id,
-            active=True
+            active=True,
         ).first()
         if not selected_service:
             flash("That service is no longer available. Please choose another service.", "warning")
@@ -168,7 +221,7 @@ def book(slug):
 
         appointment_time = request.form.get("time", "")
         existing = Appointment.query.filter_by(
-            business_id=business.id, date=booking_date, time=appointment_time
+            business_id=business.id, date=booking_date, time=appointment_time,
         ).filter(Appointment.status.in_(["confirmed", "pending", "pending_payment"])).first()
         if existing:
             flash("That time is no longer available. Please choose another slot.", "warning")
@@ -225,7 +278,6 @@ def book(slug):
             flash("Booking confirmed. The customer will pay in person.", "success")
             return redirect(url_for("confirmation", reference=appointment.reference))
 
-        # YOCO online payment: create hosted checkout, then redirect.
         try:
             base_url = request.url_root.rstrip("/")
             checkout_id, redirect_url, _ = create_checkout(appointment, business, base_url)
@@ -233,7 +285,7 @@ def book(slug):
             appointment.payment_reference = checkout_id
             db.session.commit()
             return redirect(redirect_url)
-        except Exception as exc:
+        except Exception:
             app.logger.exception("YOCO checkout creation failed")
             db.session.delete(appointment)
             db.session.commit()
@@ -247,6 +299,7 @@ def book(slug):
         staff=staff,
         selected_service=selected_service,
     )
+
 
 @app.route("/test-email")
 @owner_required
@@ -265,7 +318,7 @@ def test_email():
         recipient,
         "Appoint email test",
         "<h1>Appoint email test</h1><p>If you received this, email delivery is working.</p>",
-        "Appoint email test\n\nIf you received this, email delivery is working."
+        "Appoint email test\n\nIf you received this, email delivery is working.",
     )
     if ok:
         return "<h2>Email sent</h2><p>Check the recipient inbox.</p>"
@@ -376,87 +429,116 @@ def mark_cash_paid(appointment_id):
 def confirmation(reference):
     return render_template("confirmation.html", appointment=Appointment.query.filter_by(reference=reference).first_or_404())
 
+
 @app.route("/cancel/<reference>", methods=["POST"])
 def cancel(reference):
     appointment = Appointment.query.filter_by(reference=reference).first_or_404()
-    appointment.status="cancelled"; db.session.commit()
-    flash("Your appointment has been cancelled.","success")
+    appointment.status = "cancelled"
+    db.session.commit()
+    flash("Your appointment has been cancelled.", "success")
     return redirect(url_for("confirmation", reference=reference))
+
 
 @app.route("/api/slots")
 def slots():
     business = db.session.get(Business, request.args.get("business_id", type=int))
     service = db.session.get(Service, request.args.get("service_id", type=int))
-    try: chosen = datetime.strptime(request.args.get("date",""), "%Y-%m-%d").date()
-    except ValueError: return jsonify({"slots":[]}), 400
-    if not business or not service or service.business_id != business.id: return jsonify({"slots":[]}), 400
+    try:
+        chosen = datetime.strptime(request.args.get("date", ""), "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"slots": []}), 400
+    if not business or not service or service.business_id != business.id:
+        return jsonify({"slots": []}), 400
     settings = business.settings or BusinessSetting(business_id=business.id)
-    if str(chosen.weekday()) not in settings.working_days.split(","): return jsonify({"slots":[]})
-    start=datetime.combine(chosen, datetime.strptime(settings.open_time,"%H:%M").time())
-    end=datetime.combine(chosen, datetime.strptime(settings.close_time,"%H:%M").time())
-    booked={a.time for a in Appointment.query.filter_by(business_id=business.id,date=chosen).filter(Appointment.status.in_(["confirmed","pending","pending_payment"])).all()}
-    result=[]; cursor=start; duration=timedelta(minutes=service.duration)
-    while cursor+duration <= end:
-        label=cursor.strftime("%H:%M")
-        if label not in booked: result.append(label)
+    if str(chosen.weekday()) not in settings.working_days.split(","):
+        return jsonify({"slots": []})
+    start = datetime.combine(chosen, datetime.strptime(settings.open_time, "%H:%M").time())
+    end = datetime.combine(chosen, datetime.strptime(settings.close_time, "%H:%M").time())
+    booked = {a.time for a in Appointment.query.filter_by(business_id=business.id, date=chosen)
+              .filter(Appointment.status.in_(["confirmed", "pending", "pending_payment"])).all()}
+    result = []
+    cursor = start
+    duration = timedelta(minutes=service.duration)
+    while cursor + duration <= end:
+        label = cursor.strftime("%H:%M")
+        if label not in booked:
+            result.append(label)
         cursor += timedelta(minutes=settings.slot_duration or 30)
-    return jsonify({"slots":result})
+    return jsonify({"slots": result})
 
-@app.route("/login", methods=["GET","POST"])
+
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    if current_user.is_authenticated: return redirect(url_for("home"))
-    if request.method=="POST":
-        user=User.query.filter_by(email=request.form["email"].strip().lower()).first()
+    if current_user.is_authenticated:
+        return redirect(url_for("home"))
+    if request.method == "POST":
+        user = User.query.filter_by(email=request.form["email"].strip().lower()).first()
         if user and check_password_hash(user.password_hash, request.form["password"]):
-            login_user(user); return redirect(url_for("dashboard") if user.is_business_owner() else url_for("home"))
-        flash("Incorrect email or password.","danger")
+            login_user(user)
+            return redirect(url_for("dashboard") if user.is_business_owner() else url_for("home"))
+        flash("Incorrect email or password.", "danger")
     return render_template("auth/login.html")
 
-@app.route("/register", methods=["GET","POST"])
+
+@app.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method=="POST":
-        name=request.form["name"].strip(); email=request.form["email"].strip().lower(); password=request.form["password"]; role=request.form.get("role","customer")
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        email = request.form["email"].strip().lower()
+        password = request.form["password"]
+        role = request.form.get("role", "customer")
         if User.query.filter_by(email=email).first():
-            flash("An account with that email already exists.","warning"); return redirect(url_for("register"))
-        user=User(name=name,email=email,password_hash=generate_password_hash(password),role="business_owner" if role=="business_owner" else "customer")
-        db.session.add(user); db.session.commit(); login_user(user)
-        if user.role=="business_owner": return redirect(url_for("create_business"))
-        flash("Welcome! Your account is ready.","success"); return redirect(url_for("home"))
+            flash("An account with that email already exists.", "warning")
+            return redirect(url_for("register"))
+        user = User(name=name, email=email,
+                    password_hash=generate_password_hash(password),
+                    role="business_owner" if role == "business_owner" else "customer")
+        db.session.add(user)
+        db.session.commit()
+        login_user(user)
+        if user.role == "business_owner":
+            return redirect(url_for("dashboard"))
+        flash("Welcome! Your account is ready.", "success")
+        return redirect(url_for("home"))
     return render_template("auth/register.html")
+
 
 @app.route("/logout")
 @login_required
 def logout():
-    logout_user(); return redirect(url_for("home"))
+    logout_user()
+    return redirect(url_for("home"))
+
 
 @app.route("/dashboard")
 @owner_required
 def dashboard():
-    business=get_owned_business()
-    appointments=Appointment.query.filter_by(business_id=business.id).order_by(Appointment.date.desc(),Appointment.time.desc()).limit(25).all()
-    total=Appointment.query.filter_by(business_id=business.id).count()
-    upcoming=Appointment.query.filter_by(business_id=business.id,date=date.today(),status="confirmed").count()+Appointment.query.filter_by(business_id=business.id,status="confirmed").filter(Appointment.date>date.today()).count()
-    revenue=sum((a.amount_paid or 0) for a in Appointment.query.filter_by(business_id=business.id,payment_status="paid").all())
-    return render_template("business/dashboard.html",business=business,appointments=appointments,total=total,upcoming=upcoming,revenue=revenue)
+    business = get_owned_business()
+    appointments = Appointment.query.filter_by(business_id=business.id).order_by(
+        Appointment.date.desc(), Appointment.time.desc()).limit(25).all()
+    total = Appointment.query.filter_by(business_id=business.id).count()
+    upcoming = (
+        Appointment.query.filter_by(business_id=business.id, date=date.today(), status="confirmed").count()
+        + Appointment.query.filter_by(business_id=business.id, status="confirmed").filter(Appointment.date > date.today()).count()
+    )
+    revenue = sum((a.amount_paid or 0) for a in Appointment.query.filter_by(business_id=business.id, payment_status="paid").all())
+    return render_template("business/dashboard.html", business=business, appointments=appointments,
+                           total=total, upcoming=upcoming, revenue=revenue)
+
+
 @app.route("/business/calendar")
 @owner_required
 def calendar():
     business = get_owned_business()
     staff_members = Staff.query.filter_by(business_id=business.id, active=True).order_by(Staff.name).all()
-    return render_template(
-        "business/calendar.html",
-        business=business,
-        staff=staff_members,
-    )
+    return render_template("business/calendar.html", business=business, staff=staff_members)
 
 
 @app.route("/api/calendar/appointments")
 @owner_required
 def calendar_appointments():
-    """Return appointments for a given month as JSON for the calendar grid."""
     business = get_owned_business()
-
-    month_param = request.args.get("month", "").strip()  # expected: YYYY-MM
+    month_param = request.args.get("month", "").strip()
     staff_id = request.args.get("staff_id", type=int)
 
     try:
@@ -465,7 +547,6 @@ def calendar_appointments():
     except (ValueError, AttributeError):
         return jsonify({"error": "Invalid month. Use YYYY-MM."}), 400
 
-    # Compute last day of the month
     if month == 12:
         next_month = date(year + 1, 1, 1)
     else:
@@ -483,7 +564,6 @@ def calendar_appointments():
 
     appointments = query.order_by(Appointment.date, Appointment.time).all()
 
-    # Group by day for the calendar grid
     days = {}
     for appt in appointments:
         key = appt.date.isoformat()
@@ -514,7 +594,6 @@ def calendar_appointments():
 @app.route("/api/calendar/day")
 @owner_required
 def calendar_day():
-    """Return detailed appointments for a specific day."""
     business = get_owned_business()
     date_param = request.args.get("date", "").strip()
     staff_id = request.args.get("staff_id", type=int)
@@ -550,83 +629,123 @@ def calendar_day():
             "amount_paid": float(a.amount_paid or 0),
         } for a in appointments],
     })
-@app.route("/business/create", methods=["GET","POST"])
+
+
+@app.route("/business/create", methods=["GET", "POST"])
 @owner_required
 def create_business():
-    if request.method=="POST":
-        name=request.form["name"].strip()
-        business=Business(owner_id=current_user.id,name=name,slug=unique_slug(name),category=request.form.get("category","Other"),
-            description=request.form.get("description","").strip(),email=request.form.get("email","").strip(),phone=request.form.get("phone","").strip(),
-            address=request.form.get("address","").strip(),city=request.form.get("city","").strip())
-        db.session.add(business); db.session.flush(); db.session.add(BusinessSetting(business_id=business.id))
-        db.session.add(Service(business_id=business.id,name="First Service",duration=30,price=0)); db.session.commit()
-        flash("Your business has been created.","success"); return redirect(url_for("dashboard",business_id=business.id))
-    return render_template("business/create.html")
+    """Disabled in single-business mode."""
+    flash("This is a single-business deployment. You cannot create additional businesses.", "info")
+    return redirect(url_for("dashboard"))
+
 
 @app.route("/business/services")
 @owner_required
 def services():
-    business=get_owned_business()
-    return render_template("business/services.html",business=business,services=Service.query.filter_by(business_id=business.id).order_by(Service.name).all())
+    business = get_owned_business()
+    return render_template("business/services.html", business=business,
+                           services=Service.query.filter_by(business_id=business.id).order_by(Service.name).all())
 
-@app.route("/business/services/new", methods=["GET","POST"])
+
+@app.route("/business/services/new", methods=["GET", "POST"])
 @owner_required
 def new_service():
-    business=get_owned_business()
-    if request.method=="POST":
-        db.session.add(Service(business_id=business.id,name=request.form["name"].strip(),description=request.form.get("description","").strip(),
-            duration=request.form.get("duration",type=int) or 30,price=float(request.form.get("price") or 0),popular="popular" in request.form))
-        db.session.commit(); flash("Service created.","success"); return redirect(url_for("services",business_id=business.id))
-    return render_template("business/service_form.html",business=business,service=None)
+    business = get_owned_business()
+    if request.method == "POST":
+        db.session.add(Service(
+            business_id=business.id,
+            name=request.form["name"].strip(),
+            description=request.form.get("description", "").strip(),
+            duration=request.form.get("duration", type=int) or 30,
+            price=float(request.form.get("price") or 0),
+            popular="popular" in request.form,
+        ))
+        db.session.commit()
+        flash("Service created.", "success")
+        return redirect(url_for("services", business_id=business.id))
+    return render_template("business/service_form.html", business=business, service=None)
 
-@app.route("/business/services/<int:service_id>/edit", methods=["GET","POST"])
+
+@app.route("/business/services/<int:service_id>/edit", methods=["GET", "POST"])
 @owner_required
 def edit_service(service_id):
-    business=get_owned_business(); service=Service.query.filter_by(id=service_id,business_id=business.id).first_or_404()
-    if request.method=="POST":
-        service.name=request.form["name"].strip(); service.description=request.form.get("description","").strip()
-        service.duration=request.form.get("duration",type=int) or 30; service.price=float(request.form.get("price") or 0)
-        service.popular="popular" in request.form; service.active="active" in request.form; db.session.commit()
-        flash("Service updated.","success"); return redirect(url_for("services",business_id=business.id))
-    return render_template("business/service_form.html",business=business,service=service)
+    business = get_owned_business()
+    service = Service.query.filter_by(id=service_id, business_id=business.id).first_or_404()
+    if request.method == "POST":
+        service.name = request.form["name"].strip()
+        service.description = request.form.get("description", "").strip()
+        service.duration = request.form.get("duration", type=int) or 30
+        service.price = float(request.form.get("price") or 0)
+        service.popular = "popular" in request.form
+        service.active = "active" in request.form
+        db.session.commit()
+        flash("Service updated.", "success")
+        return redirect(url_for("services", business_id=business.id))
+    return render_template("business/service_form.html", business=business, service=service)
+
 
 @app.route("/business/services/<int:service_id>/delete", methods=["POST"])
 @owner_required
 def delete_service(service_id):
-    business=get_owned_business(); service=Service.query.filter_by(id=service_id,business_id=business.id).first_or_404()
-    if service.appointments: service.active=False; flash("Service has bookings, so it was archived instead of deleted.","info")
-    else: db.session.delete(service); flash("Service deleted.","success")
-    db.session.commit(); return redirect(url_for("services",business_id=business.id))
+    business = get_owned_business()
+    service = Service.query.filter_by(id=service_id, business_id=business.id).first_or_404()
+    if service.appointments:
+        service.active = False
+        flash("Service has bookings, so it was archived instead of deleted.", "info")
+    else:
+        db.session.delete(service)
+        flash("Service deleted.", "success")
+    db.session.commit()
+    return redirect(url_for("services", business_id=business.id))
+
 
 @app.route("/business/staff")
 @owner_required
 def staff():
-    business=get_owned_business()
-    return render_template("business/staff.html",business=business,staff=Staff.query.filter_by(business_id=business.id).order_by(Staff.name).all())
+    business = get_owned_business()
+    return render_template("business/staff.html", business=business,
+                           staff=Staff.query.filter_by(business_id=business.id).order_by(Staff.name).all())
+
 
 @app.route("/business/staff/new", methods=["POST"])
 @owner_required
 def new_staff():
-    business=get_owned_business()
-    db.session.add(Staff(business_id=business.id,name=request.form["name"].strip(),role=request.form.get("role","Team Member").strip(),email=request.form.get("email","").strip()))
-    db.session.commit(); flash("Team member added.","success"); return redirect(url_for("staff",business_id=business.id))
+    business = get_owned_business()
+    db.session.add(Staff(
+        business_id=business.id,
+        name=request.form["name"].strip(),
+        role=request.form.get("role", "Team Member").strip(),
+        email=request.form.get("email", "").strip(),
+    ))
+    db.session.commit()
+    flash("Team member added.", "success")
+    return redirect(url_for("staff", business_id=business.id))
+
 
 @app.route("/business/appointments/<int:appointment_id>/status", methods=["POST"])
 @owner_required
 def appointment_status(appointment_id):
-    business=get_owned_business(); appointment=Appointment.query.filter_by(id=appointment_id,business_id=business.id).first_or_404()
-    if request.form.get("status") in {"confirmed","completed","cancelled","pending"}:
-        appointment.status=request.form["status"]; db.session.commit(); flash("Appointment status updated.","success")
-    return redirect(url_for("dashboard",business_id=business.id))
+    business = get_owned_business()
+    appointment = Appointment.query.filter_by(id=appointment_id, business_id=business.id).first_or_404()
+    if request.form.get("status") in {"confirmed", "completed", "cancelled", "pending"}:
+        appointment.status = request.form["status"]
+        db.session.commit()
+        flash("Appointment status updated.", "success")
+    return redirect(url_for("dashboard", business_id=business.id))
 
-@app.route("/business/settings", methods=["GET","POST"])
+
+@app.route("/business/settings", methods=["GET", "POST"])
 @owner_required
 def business_settings():
-    business=get_owned_business(); settings=business.settings or BusinessSetting(business_id=business.id)
-    if request.method=="POST":
-        for field in ["name","category","description","email","phone","address","city"]: setattr(business,field,request.form.get(field,"").strip())
-        settings.open_time=request.form.get("open_time","09:00"); settings.close_time=request.form.get("close_time","17:00")
-        settings.slot_duration=request.form.get("slot_duration",type=int) or 30; settings.cancellation_hours=request.form.get("cancellation_hours",type=int) or 24
+    business = get_owned_business()
+    settings = business.settings or BusinessSetting(business_id=business.id)
+    if request.method == "POST":
+        for field in ["name", "category", "description", "email", "phone", "address", "city"]:
+            setattr(business, field, request.form.get(field, "").strip())
+        settings.open_time = request.form.get("open_time", "09:00")
+        settings.close_time = request.form.get("close_time", "17:00")
+        settings.slot_duration = request.form.get("slot_duration", type=int) or 30
+        settings.cancellation_hours = request.form.get("cancellation_hours", type=int) or 24
         settings.cash_enabled = "cash_enabled" in request.form
         settings.yoco_enabled = "yoco_enabled" in request.form
         settings.yoco_public_key = request.form.get("yoco_public_key", "").strip()
@@ -638,25 +757,36 @@ def business_settings():
             if yoco_secret:
                 settings.yoco_secret_key_encrypted = encrypt_secret(yoco_secret)
 
-        # Appoint verifies the YOCO checkout directly after the customer returns
-        # from hosted checkout. Business owners do not need to configure a webhook
-        # secret in the dashboard.
-        db.session.add(settings); db.session.commit(); flash("Business settings saved.","success")
-        return redirect(url_for("business_settings",business_id=business.id))
-    return render_template("business/settings.html",business=business,settings=settings,
+        db.session.add(settings)
+        db.session.commit()
+        flash("Business settings saved.", "success")
+        return redirect(url_for("business_settings", business_id=business.id))
+
+    return render_template("business/settings.html", business=business, settings=settings,
                            yoco_public_key_configured=bool(settings.yoco_public_key),
                            yoco_secret_configured=bool(settings.yoco_secret_key_encrypted))
+
 
 @app.route("/admin")
 @login_required
 def admin():
-    if not current_user.is_admin(): abort(403)
-    return render_template("admin/index.html",businesses=Business.query.order_by(Business.created_at.desc()).all(),users=User.query.count(),appointments=Appointment.query.count())
+    if not current_user.is_admin():
+        abort(403)
+    return render_template("admin/index.html",
+                           businesses=Business.query.order_by(Business.created_at.desc()).all(),
+                           users=User.query.count(),
+                           appointments=Appointment.query.count())
+
 
 @app.errorhandler(403)
-def forbidden(_): return render_template("404.html",message="You do not have permission to view this page."),403
+def forbidden(_):
+    return render_template("404.html", message="You do not have permission to view this page."), 403
+
+
 @app.errorhandler(404)
-def not_found(_): return render_template("404.html",message="That page could not be found."),404
+def not_found(_):
+    return render_template("404.html", message="That page could not be found."), 404
+
 
 with app.app_context():
     db.create_all()
@@ -664,5 +794,6 @@ with app.app_context():
     ensure_business_payment_columns()
     seed()
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     app.run(debug=True)

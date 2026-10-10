@@ -1,5 +1,187 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#635bff"><title>{% block title %}Appoint{% endblock %}</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link rel="stylesheet" href="{{ url_for('static',filename='css/style.css') }}"></head><body>
-<nav class="navbar navbar-expand-lg glass-nav"><div class="container py-2"><a class="navbar-brand fw-bold brand" href="{{ url_for('home') }}">Appoint<span>.</span></a><button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button><div class="collapse navbar-collapse" id="nav"><div class="navbar-nav ms-auto align-items-lg-center gap-lg-2"><a class="nav-link" href="{{ url_for('home') }}">Discover</a>{% if current_user.is_authenticated and current_user.is_business_owner() %}<a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a><a class="nav-link" href="{{ url_for('create_business') }}">Add business</a>{% endif %}{% if current_user.is_authenticated %}<a class="btn btn-dark rounded-pill px-4" href="{{ url_for('logout') }}">Logout</a>{% else %}<a class="nav-link" href="{{ url_for('login') }}">Login</a><a class="btn btn-primary rounded-pill px-4" href="{{ url_for('register') }}">Get started</a>{% endif %}</div></div></div></nav>
-<main>{% with messages=get_flashed_messages(with_categories=true) %}{% if messages %}<div class="container pt-3">{% for category,message in messages %}<div class="alert alert-{{ category }} border-0 rounded-4 shadow-sm">{{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}{% block content %}{% endblock %}</main>
-<footer class="footer mt-5"><div class="container py-5 d-flex flex-column flex-md-row justify-content-between gap-3"><div><div class="brand fw-bold">Appoint<span>.</span></div><small>Appointments made beautifully simple.</small></div><small>Multi-business booking platform</small></div></footer>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>{% block scripts %}{% endblock %}</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#d88a9a">
+  <title>{% block title %}Londiieyy · Nail Studio{% endblock %}</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg glass-nav">
+  <div class="container py-2">
+    <a class="navbar-brand brand" href="{{ url_for('home') }}">
+      {% if current_user.is_authenticated and current_user.is_business_owner() and current_user.businesses %}
+        {{ current_user.businesses[0].name }}
+      {% else %}
+        Londiieyy
+      {% endif %}
+    </a>
+
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="mainNav">
+      <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-1">
+
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Home</a>
+        </li>
+
+        {% if current_user.is_authenticated and current_user.is_business_owner() %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}" href="{{ url_for('calendar') }}">Calendar</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint in ['services','new_service','edit_service'] %}active{% endif %}" href="{{ url_for('services') }}">Services</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint in ['staff','new_staff'] %}active{% endif %}" href="{{ url_for('staff') }}">Team</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'business_settings' %}active{% endif %}" href="{{ url_for('business_settings') }}">Settings</a>
+          </li>
+        {% endif %}
+
+        {% if current_user.is_authenticated and current_user.is_admin() %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'admin' %}active{% endif %}" href="{{ url_for('admin') }}">Admin</a>
+          </li>
+        {% endif %}
+
+        {% if current_user.is_authenticated %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <span class="user-avatar">{{ current_user.name[:1]|upper }}</span>
+              <span class="d-none d-lg-inline">{{ current_user.name.split(' ')[0] }}</span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+              <li><span class="dropdown-item-text small text-muted">{{ current_user.email }}</span></li>
+              <li><hr class="dropdown-divider"></li>
+              {% if current_user.is_business_owner() %}
+                <li><a class="dropdown-item" href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('calendar') }}">Calendar</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('business_settings') }}">Business settings</a></li>
+                <li><hr class="dropdown-divider"></li>
+              {% endif %}
+              <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}">Logout</a></li>
+            </ul>
+          </li>
+        {% else %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+          </li>
+          <li class="nav-item">
+            <a class="btn btn-primary rounded-pill px-4 ms-lg-2" href="{{ url_for('register') }}">Book now</a>
+          </li>
+        {% endif %}
+
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="container pt-3">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} border-0 rounded-4 shadow-sm">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="footer mt-5">
+  <div class="container py-5">
+    <div class="row g-4">
+      <div class="col-md-5">
+        <div class="brand mb-2">
+          {% if current_user.is_authenticated and current_user.is_business_owner() and current_user.businesses %}
+            {{ current_user.businesses[0].name }}
+          {% else %}
+            Londiieyy
+          {% endif %}
+        </div>
+        <p class="mb-0">Beautiful nails, gentle care.</p>
+      </div>
+      <div class="col-md-7">
+        <div class="row g-4">
+          <div class="col-6 col-md-4">
+            <strong class="d-block mb-2 small text-uppercase text-muted">Visit</strong>
+            <a href="{{ url_for('home') }}" class="footer-link">Home</a>
+            {% if current_user.is_authenticated and current_user.is_business_owner() %}
+              <a href="{{ url_for('calendar') }}" class="footer-link">Calendar</a>
+              <a href="{{ url_for('dashboard') }}" class="footer-link">Dashboard</a>
+            {% endif %}
+          </div>
+          <div class="col-6 col-md-4">
+            <strong class="d-block mb-2 small text-uppercase text-muted">Studio</strong>
+            {% if current_user.is_authenticated and current_user.is_business_owner() %}
+              <a href="{{ url_for('services') }}" class="footer-link">Services</a>
+              <a href="{{ url_for('staff') }}" class="footer-link">Team</a>
+              <a href="{{ url_for('business_settings') }}" class="footer-link">Settings</a>
+            {% else %}
+              <a href="{{ url_for('login') }}" class="footer-link">Owner login</a>
+            {% endif %}
+          </div>
+          <div class="col-6 col-md-4">
+            <strong class="d-block mb-2 small text-uppercase text-muted">Account</strong>
+            {% if current_user.is_authenticated %}
+              <a href="{{ url_for('logout') }}" class="footer-link">Logout</a>
+            {% else %}
+              <a href="{{ url_for('login') }}" class="footer-link">Login</a>
+              <a href="{{ url_for('register') }}" class="footer-link">Register</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mt-4 pt-4 border-top">
+      <small class="text-muted">© 2025 Londiieyy. All rights reserved.</small>
+      <small class="text-muted">Nail studio · Johannesburg</small>
+    </div>
+  </div>
+</footer>
+
+<!-- Booking confirmation popup -->
+<div class="booking-popup-backdrop" id="booking-popup-backdrop"></div>
+<div class="booking-popup" id="booking-popup" role="dialog" aria-modal="true" aria-labelledby="popup-title">
+  <div class="booking-popup-inner">
+    <button class="booking-popup-close" id="popup-close" type="button" aria-label="Close">×</button>
+
+    <div class="booking-popup-icon" id="popup-icon">✓</div>
+
+    <h3 class="booking-popup-title" id="popup-title">You're booked!</h3>
+    <p class="booking-popup-sub" id="popup-sub">Your appointment is confirmed.</p>
+
+    <div class="booking-popup-summary" id="popup-summary"></div>
+
+    <div class="booking-popup-actions">
+      <a href="#" class="btn btn-primary rounded-pill" id="popup-view">View details</a>
+      <button type="button" class="btn btn-outline-dark rounded-pill" id="popup-dismiss">Close</button>
+    </div>
+  </div>
+
+  <div class="confetti-container" id="confetti-container" aria-hidden="true"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
