@@ -74,7 +74,40 @@
 <div class="d-flex flex-wrap gap-2 mt-4">
 <button class="btn btn-primary btn-lg rounded-pill" type="submit">Save changes</button>
 </div>
+<hr>
+<h3>Account security</h3>
+<p class="text-muted">Change the password you use to log in to this dashboard.</p>
 
+<div class="security-card">
+  <div class="security-card-head">
+    <strong>Password</strong>
+    {% if current_user.username %}
+      <small>Logged in as <code>{{ current_user.username }}</code></small>
+    {% endif %}
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label>Current password
+        <input type="password" name="current_password" class="form-control" autocomplete="current-password">
+      </label>
+    </div>
+    <div class="col-md-4">
+      <label>New password
+        <input type="password" name="new_password" class="form-control" autocomplete="new-password" minlength="6">
+      </label>
+    </div>
+    <div class="col-md-4">
+      <label>Confirm new password
+        <input type="password" name="confirm_password" class="form-control" autocomplete="new-password" minlength="6">
+      </label>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-outline-dark rounded-pill" formaction="{{ url_for('change_password') }}" formnovalidate>
+    Update password
+  </button>
+</div>
 </form>
 </div>
 </section>

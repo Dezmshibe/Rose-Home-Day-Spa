@@ -115,12 +115,22 @@ def reference():
 
 
 def seed():
-    if User.query.filter_by(email="admin@platform.local").first():
+    if User.query.filter_by(username="Londiieyy").first():
         return
-    admin = User(name="Platform Admin", email="admin@platform.local",
-                 password_hash=generate_password_hash("admin123"), role="platform_admin")
-    owner = User(name="Demo Owner", email="owner@brightstudio.local",
-                 password_hash=generate_password_hash("owner123"), role="business_owner")
+    admin = User(
+        name="Platform Admin",
+        username="admin",
+        email="admin@platform.local",
+        password_hash=generate_password_hash("admin123"),
+        role="platform_admin",
+    )
+    owner = User(
+        name="Londiie",
+        username="Londiieyy",
+        email=None,
+        password_hash=generate_password_hash("Londiieyy123"),
+        role="business_owner",
+    )
     db.session.add_all([admin, owner])
     db.session.flush()
     business = Business(owner_id=owner.id, name="Bright Studio", slug="bright-studio", category="Beauty",
@@ -472,11 +482,14 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for("home"))
     if request.method == "POST":
-        user = User.query.filter_by(email=request.form["email"].strip().lower()).first()
-        if user and check_password_hash(user.password_hash, request.form["password"]):
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        # Case-insensitive username lookup
+        user = User.query.filter(db.func.lower(User.username) == username.lower()).first()
+        if user and check_password_hash(user.password_hash, password):
             login_user(user)
             return redirect(url_for("dashboard") if user.is_business_owner() else url_for("home"))
-        flash("Incorrect email or password.", "danger")
+        flash("Incorrect username or password.", "danger")
     return render_template("auth/login.html")
 
 
@@ -484,15 +497,30 @@ def login():
 def register():
     if request.method == "POST":
         name = request.form["name"].strip()
-        email = request.form["email"].strip().lower()
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip().lower()
         password = request.form["password"]
         role = request.form.get("role", "customer")
-        if User.query.filter_by(email=email).first():
+
+        if not username:
+            flash("Please choose a username.", "warning")
+            return redirect(url_for("register"))
+
+        if User.query.filter(db.func.lower(User.username) == username.lower()).first():
+            flash("That username is already taken.", "warning")
+            return redirect(url_for("register"))
+
+        if email and User.query.filter_by(email=email).first():
             flash("An account with that email already exists.", "warning")
             return redirect(url_for("register"))
-        user = User(name=name, email=email,
-                    password_hash=generate_password_hash(password),
-                    role="business_owner" if role == "business_owner" else "customer")
+
+        user = User(
+            name=name,
+            username=username,
+            email=email or None,
+            password_hash=generate_password_hash(password),
+            role="business_owner" if role == "business_owner" else "customer",
+        )
         db.session.add(user)
         db.session.commit()
         login_user(user)
@@ -766,7 +794,30 @@ def business_settings():
                            yoco_public_key_configured=bool(settings.yoco_public_key),
                            yoco_secret_configured=bool(settings.yoco_secret_key_encrypted))
 
+@app.route("/account/password", methods=["POST"])
+@login_required
+def change_password():
+    """Change the current user's password."""
+    current = request.form.get("current_password", "")
+    new = request.form.get("new_password", "")
+    confirm = request.form.get("confirm_password", "")
 
+    if not check_password_hash(current_user.password_hash, current):
+        flash("Your current password is incorrect.", "danger")
+        return redirect(url_for("business_settings"))
+
+    if len(new) < 6:
+        flash("New password must be at least 6 characters.", "danger")
+        return redirect(url_for("business_settings"))
+
+    if new != confirm:
+        flash("New passwords do not match.", "danger")
+        return redirect(url_for("business_settings"))
+
+    current_user.password_hash = generate_password_hash(new)
+    db.session.commit()
+    flash("Password updated.", "success")
+    return redirect(url_for("business_settings"))
 @app.route("/admin")
 @login_required
 def admin():

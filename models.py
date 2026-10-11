@@ -7,7 +7,8 @@ db = SQLAlchemy()
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
-    email = db.Column(db.String(160), unique=True, nullable=False, index=True)
+    username = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(160), unique=True, nullable=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(30), default="customer", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -17,7 +18,7 @@ class User(UserMixin, db.Model):
         return self.role in ("business_owner", "platform_admin")
     def is_admin(self):
         return self.role == "platform_admin"
-
+    
 class Business(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)

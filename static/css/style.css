@@ -2121,3 +2121,39 @@ h1, h2, h3, h4, h5 {
 }
 
 .change-service { color: var(--primary-dark) !important; }
+/* Security card in settings */
+.security-card {
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid var(--line, #f0e6e0);
+  border-radius: 20px;
+  background: #fdf8f5;
+}
+
+.security-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.security-card-head strong {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.05rem;
+}
+
+.security-card-head small {
+  color: #8a7a80;
+  font-size: .82rem;
+}
+
+.security-card-head code {
+  background: #fff;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #f0e6e0;
+  color: #b86c7c;
+  font-weight: 600;
+}
