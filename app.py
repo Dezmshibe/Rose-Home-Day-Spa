@@ -16,7 +16,7 @@ from payment_crypto import encrypt_secret
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-this-secret-key")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///" + os.path.join(BASE_DIR, "booking.db"))
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///" + os.path.join(BASE_DIR, "rosehome.db"))
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
 login_manager = LoginManager(app)
@@ -113,9 +113,9 @@ def get_owned_business():
 def reference():
     return "APT-" + secrets.token_hex(4).upper()
 def seed():
-    if User.query.filter_by(username="RoseHome").first():
+    # If there are ANY users or businesses in the DB, don't seed again
+    if User.query.first() or Business.query.first():
         return
-
     # 1. Create the Admin
     admin = User(
         name="Platform Admin",
