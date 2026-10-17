@@ -112,11 +112,11 @@ def get_owned_business():
 
 def reference():
     return "APT-" + secrets.token_hex(4).upper()
-
-
 def seed():
-    if User.query.filter_by(username="Londiieyy").first():
+    if User.query.filter_by(username="RoseHome").first():
         return
+
+    # 1. Create the Admin
     admin = User(
         name="Platform Admin",
         username="admin",
@@ -124,19 +124,51 @@ def seed():
         password_hash=generate_password_hash("admin123"),
         role="platform_admin",
     )
+
+    # 2. Create the Owner (Login: RoseHome / RoseHome123)
     owner = User(
-        name="Londiie",
-        username="Londiieyy",
+        name="Rose Home",
+        username="RoseHome",
         email=None,
-        password_hash=generate_password_hash("Londiieyy123"),
+        password_hash=generate_password_hash("RoseHome123"),
         role="business_owner",
     )
+    
     db.session.add_all([admin, owner])
     db.session.flush()
-    business = Business(owner_id=owner.id, name="Bright Studio", slug="bright-studio", category="Beauty",
-                        description="A modern appointment business ready for online bookings.",
-                        email="hello@brightstudio.com", phone="+27 11 000 0000",
-                        address="123 Main Street", city="Johannesburg")
+
+    # 3. Create the Business
+    business = Business(
+        owner_id=owner.id, 
+        name="Rose Home Day Spa", 
+        slug="rose-home-day-spa", 
+        category="Day Spa",
+        description="Relax, restore, and rejuvenate. Book your tranquil escape.",
+        email="hello@rosehomedayspa.com", 
+        phone="+27 11 000 0000",
+        address="123 Main Street", 
+        city="Johannesburg"
+    )
+    db.session.add(business)
+    db.session.flush()
+
+    # 4. Create the Settings
+    db.session.add(BusinessSetting(business_id=business.id))
+
+    # 5. Create Services tailored to a spa
+    db.session.add_all([
+        Service(business_id=business.id, name="Full Body Massage", description="Deep tissue relaxation.", duration=60, price=650, popular=True),
+        Service(business_id=business.id, name="Facial Treatment", description="Cleanse, exfoliate, and hydrate.", duration=45, price=450, popular=True),
+        Service(business_id=business.id, name="Manicure & Pedicure", description="Complete nail care.", duration=75, price=550),
+    ])
+
+    # 6. Create Staff
+    db.session.add_all([
+        Staff(business_id=business.id, name="Rose", role="Lead Therapist"),
+        Staff(business_id=business.id, name="Taylor", role="Spa Specialist"),
+    ])
+
+    db.session.commit()
     db.session.add(business)
     db.session.flush()
     db.session.add(BusinessSetting(business_id=business.id))

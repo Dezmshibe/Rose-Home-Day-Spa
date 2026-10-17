@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#d88a9a">
-  <title>{% block title %}Londiieyy · Nail Studio{% endblock %}</title>
+  <title>{% block title %}Rose Home Day Spa{% endblock %}</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -22,7 +22,7 @@
       {% if current_user.is_authenticated and current_user.is_business_owner() and current_user.businesses %}
         {{ current_user.businesses[0].name }}
       {% else %}
-        Londiieyy
+        Rose Home Day Spa
       {% endif %}
     </a>
 
@@ -115,10 +115,10 @@
           {% if current_user.is_authenticated and current_user.is_business_owner() and current_user.businesses %}
             {{ current_user.businesses[0].name }}
           {% else %}
-            Londiieyy
+            Rose Home Day Spa
           {% endif %}
         </div>
-        <p class="mb-0">Beautiful nails, gentle care.</p>
+        <p class="mb-0">Relax, restore, and rejuvenate.</p>
       </div>
       <div class="col-md-7">
         <div class="row g-4">
@@ -153,8 +153,8 @@
       </div>
     </div>
     <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mt-4 pt-4 border-top">
-      <small class="text-muted">© 2025 Londiieyy. All rights reserved.</small>
-      <small class="text-muted">Nail studio · Johannesburg</small>
+      <small class="text-muted">© 2025 Rose Home Day Spa. All rights reserved.</small>
+      <small class="text-muted">Day spa · Johannesburg</small>
     </div>
   </div>
 </footer>
