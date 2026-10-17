@@ -871,19 +871,34 @@ def forbidden(_):
 def not_found(_):
     return render_template("404.html", message="That page could not be found."), 404
 
-
 with app.app_context():
-    db.create_all()
+    # 1. SELF-HEALING: If the DB has ghost data, wipe it and start fresh
+    try:
+        db.create_all()
+        
+        # Check if we have a business but no users (means a previous crash happened)
+        user_count = User.query.count()
+        biz_count = Business.query.count()
+        
+        if biz_count > 0 and user_count == 0:
+            print("\n[CRITICAL] Ghost database detected. Rebuilding tables from scratch...\n")
+            db.drop_all()
+            db.create_all()
+            
+    except Exception as e:
+        print(f"Database check failed: {e}")
+        db.drop_all()
+        db.create_all()
+
+    # 2. Ensure columns for payment features exist
     ensure_payment_columns()
     ensure_business_payment_columns()
     
-    # Wrap seed in a try/except so a duplicate insert NEVER crashes the app
+    # 3. Run seed
     try:
         seed()
     except Exception as e:
         db.session.rollback()
-        print(f"\n[WARNING] Seed failed (this is usually fine if data already exists): {e}\n")
-
-
+        print(f"\n[WARNING] Seed failed: {e}\n")
 if __name__ == "__main__":
     app.run(debug=True)
