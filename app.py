@@ -113,9 +113,9 @@ def get_owned_business():
 def reference():
     return "APT-" + secrets.token_hex(4).upper()
 def seed():
-    # If there are ANY users or businesses in the DB, don't seed again
-    if User.query.first() or Business.query.first():
+    if User.query.filter_by(username="RoseHome").first():
         return
+
     # 1. Create the Admin
     admin = User(
         name="Platform Admin",
