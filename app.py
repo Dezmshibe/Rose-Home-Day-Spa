@@ -112,6 +112,7 @@ def get_owned_business():
 
 def reference():
     return "APT-" + secrets.token_hex(4).upper()
+
 def seed():
     # If there are ANY users or businesses in the DB, don't seed again
     if User.query.first() or Business.query.first():
@@ -875,7 +876,13 @@ with app.app_context():
     db.create_all()
     ensure_payment_columns()
     ensure_business_payment_columns()
-    seed()
+    
+    # Wrap seed in a try/except so a duplicate insert NEVER crashes the app
+    try:
+        seed()
+    except Exception as e:
+        db.session.rollback()
+        print(f"\n[WARNING] Seed failed (this is usually fine if data already exists): {e}\n")
 
 
 if __name__ == "__main__":
